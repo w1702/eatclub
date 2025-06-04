@@ -1,4 +1,4 @@
-package com.example.eatclub.response;
+package com.example.eatclub.dto.response;
 
 public class PeakResponse {
     private String peakTimeStart;

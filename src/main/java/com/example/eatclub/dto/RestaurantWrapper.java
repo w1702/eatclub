@@ -5,16 +5,12 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Deal {
-    private String objectId;
-    private String discount;
-    private String dineIn;
-    private String lightning;
-    private String open;
-    private String close;
-    private String qtyLeft;
+public class RestaurantWrapper {
+    private List<Restaurant> restaurants;
 }

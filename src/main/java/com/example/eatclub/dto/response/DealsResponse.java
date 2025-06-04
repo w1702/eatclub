@@ -1,4 +1,4 @@
-package com.example.eatclub.response;
+package com.example.eatclub.dto.response;
 
 import com.example.eatclub.dto.Restaurant;
 
