@@ -23,7 +23,7 @@ public class RestaurantApi {
         return restaurantService.getDeals(timeOfDay);
     }
 
-    @GetMapping("/peak")
+    @GetMapping("/peakTime")
     public PeakResponse getPeakTimeWindow() {
         return restaurantService.getPeak();
     }

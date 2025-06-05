@@ -14,7 +14,10 @@ public class Deal {
     private String discount;
     private String dineIn;
     private String lightning;
+    // Looks like some restaurant deals use open/close and others use start/end
     private String open;
     private String close;
+    private String start;
+    private String end;
     private String qtyLeft;
 }

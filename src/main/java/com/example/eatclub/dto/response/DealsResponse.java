@@ -1,9 +1,13 @@
 package com.example.eatclub.dto.response;
 
-import com.example.eatclub.dto.Restaurant;
+import lombok.Builder;
+import lombok.Data;
 
 import java.util.List;
 
+// Represents the response for the /deals endpoint
+@Data
+@Builder
 public class DealsResponse {
-    List<Restaurant> deals;
+    private List<RestaurantDeal> restaurantDeals;
 }
