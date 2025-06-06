@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static com.example.eatclub.util.TimeUtils.*;
+
 @Service
 @AllArgsConstructor
 public class RestaurantService {
@@ -28,7 +30,7 @@ public class RestaurantService {
 
     public PeakResponse getPeak(){
         RestaurantWrapper restaurants = getRestaurants();
-        return PeakResponse.builder().build();
+        return filterDealsByPeakTime(restaurants);
     }
 
     private RestaurantWrapper getRestaurants(){
@@ -51,7 +53,8 @@ public class RestaurantService {
     // If a deal has a qtyLeft it means it is still active
 
     // Assumption 5
-    // Lightning deals with no open-close or start-end times are valid throughout the restaurant opening hours
+    // The lightning boolean value is not taken into account, not sure how it would affect the formula in a real use case
+    // Deals with no open-close or start-end times are valid throughout the restaurant opening hours
     private DealsResponse filterDealsByTimeOfDay(RestaurantWrapper wrapper, String timeOfDay) {
         DealsResponse.DealsResponseBuilder result = DealsResponse.builder();
         if (wrapper == null || wrapper.getRestaurants() == null) {
@@ -103,24 +106,79 @@ public class RestaurantService {
         return result.restaurantDeals(restaurantDeals).build();
     }
 
-    // Calculate the number of minutes past midnight
-    private int convertToMinutes(String timeStr) {
-        timeStr = timeStr.trim().toLowerCase();
-        boolean isPM = timeStr.endsWith("pm");
-        timeStr = timeStr.replaceAll("[ap]m", "").trim();
-        String[] parts = timeStr.split(":");
-        int hour = Integer.parseInt(parts[0]);
-        int minute = Integer.parseInt(parts[1]);
-        if (hour == 12){
-            hour = 0;
-        }
-        if (isPM){
-            hour += 12;
-        }
-        return hour * 60 + minute;
-    }
+    // Assumption 1
+    // When calculating the peak times we are referring to a window of time
+    // It is unspecified in the spec, I assume up to 3 hrs as that is where the bulk of the deals sit
 
-    private boolean isTimeInRange(int target, int start, int end) {
-        return target >= start && target < end;
+    // Assumption 2
+    // We are counting the qtyLeft on the deals rather than the deal array size
+
+    // Assumption 3
+    // The lightning value is not taken into account, not sure how it would affect the formula in a real use case
+    private PeakResponse filterDealsByPeakTime(RestaurantWrapper wrapper) {
+        if (wrapper == null || wrapper.getRestaurants() == null) {
+            return PeakResponse.builder().peakTimeStart("").peakTimeEnd("").build();
+        }
+
+        // 1440 minutes in a day
+        int[] dealCounts = new int[1440];
+
+        wrapper.getRestaurants().stream()
+                .filter(r -> r.getDeals() != null && r.getOpen() != null && r.getClose() != null)
+                .forEach(r -> {
+                    int restaurantOpen = convertToMinutes(r.getOpen());
+                    int restaurantClose = convertToMinutes(r.getClose());
+
+                    r.getDeals().forEach(deal -> {
+                        String startStr = deal.getStart() != null ? deal.getStart() : deal.getOpen();
+                        String endStr = deal.getEnd() != null ? deal.getEnd() : deal.getClose();
+
+                        int dealStart = startStr != null ? convertToMinutes(startStr) : restaurantOpen;
+                        int dealEnd = endStr != null ? convertToMinutes(endStr) : restaurantClose;
+
+                        int effectiveStart = Math.max(dealStart, restaurantOpen);
+                        int effectiveEnd = Math.min(dealEnd, restaurantClose);
+
+                        if (effectiveEnd <= effectiveStart){
+                            return;
+                        }
+
+                        int qty = 0;
+                        try {
+                            qty = Integer.parseInt(deal.getQtyLeft());
+                        } catch (NumberFormatException e) {
+                            return;
+                        }
+
+                        for (int i = effectiveStart; i < effectiveEnd; i++) {
+                            dealCounts[i] += qty;
+                        }
+                    });
+                });
+
+        int peakWindowStart = 0;
+        int peakWindowEnd = 0;
+        // max deal quantity ever recorded in a window
+        int maxDealQty = 0;
+        // first check 60, then 120, then 180min windows
+        for (int windowSize = 60; windowSize <= 180; windowSize += 60) {
+            // move the window through the day
+            for (int i = 0; i <= 1440 - windowSize; i++) {
+                int sum = 0;
+                for (int j = 0; j < windowSize; j++) {
+                    sum += dealCounts[i + j];
+                }
+                if (sum > maxDealQty) {
+                    maxDealQty = sum;
+                    peakWindowStart = i;
+                    peakWindowEnd = i + windowSize;
+                }
+            }
+        }
+
+        return PeakResponse.builder()
+                .peakTimeStart(formatMinutesToTime(peakWindowStart))
+                .peakTimeEnd(formatMinutesToTime(peakWindowEnd))
+                .build();
     }
 }
