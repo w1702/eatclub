@@ -7,8 +7,10 @@ import com.example.eatclub.dto.response.DealsResponse;
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -18,7 +20,7 @@ import static com.example.eatclub.util.TimeUtils.*;
 @Service
 @AllArgsConstructor
 public class RestaurantService {
-    public static String URL = "https://eccdn.com.au/misc/challengedata.json";
+    private static final String URL = "https://eccdn.com.au/misc/challengedata.json";
 
     @Autowired
     private final RestTemplate restTemplate;
@@ -55,13 +57,13 @@ public class RestaurantService {
     // Assumption 5
     // The lightning boolean value is not taken into account, not sure how it would affect the formula in a real use case
     // Deals with no open-close or start-end times are valid throughout the restaurant opening hours
-    private DealsResponse filterDealsByTimeOfDay(RestaurantWrapper wrapper, String timeOfDay) {
+    private DealsResponse filterDealsByTimeOfDay(RestaurantWrapper restaurantWrapper, String timeOfDay) {
         DealsResponse.DealsResponseBuilder result = DealsResponse.builder();
-        if (wrapper == null || wrapper.getRestaurants() == null) {
-            return result.build();
+        if (restaurantWrapper == null || CollectionUtils.isEmpty(restaurantWrapper.getRestaurants()) ) {
+            return result.restaurantDeals(new ArrayList<>()).build();
         }
         int timeOfDayMinutes = convertToMinutes(timeOfDay);
-        List<RestaurantDeal> restaurantDeals = wrapper.getRestaurants().stream()
+        List<RestaurantDeal> restaurantDeals = restaurantWrapper.getRestaurants().stream()
                 .filter(r -> r.getDeals() != null && r.getOpen() != null && r.getClose() != null)
                 .flatMap(r -> {
                     int restaurantOpen = convertToMinutes(r.getOpen());
@@ -115,15 +117,18 @@ public class RestaurantService {
 
     // Assumption 3
     // The lightning value is not taken into account, not sure how it would affect the formula in a real use case
-    private PeakResponse filterDealsByPeakTime(RestaurantWrapper wrapper) {
-        if (wrapper == null || wrapper.getRestaurants() == null) {
-            return PeakResponse.builder().peakTimeStart("").peakTimeEnd("").build();
+    private PeakResponse filterDealsByPeakTime(RestaurantWrapper restaurantWrapper) {
+        PeakResponse.PeakResponseBuilder result = PeakResponse.builder();
+        if (restaurantWrapper == null || CollectionUtils.isEmpty(restaurantWrapper.getRestaurants())) {
+            return result.peakTimeStart("").peakTimeEnd("").build();
         }
 
         // 1440 minutes in a day
-        int[] dealCounts = new int[1440];
+        // we COULD bump up to larger search intervals for more efficiency at the cost of granularity
+        int dayMinutes = 1440;
+        int[] dealCounts = new int[dayMinutes];
 
-        wrapper.getRestaurants().stream()
+        restaurantWrapper.getRestaurants().stream()
                 .filter(r -> r.getDeals() != null && r.getOpen() != null && r.getClose() != null)
                 .forEach(r -> {
                     int restaurantOpen = convertToMinutes(r.getOpen());
@@ -163,7 +168,7 @@ public class RestaurantService {
         // first check 60, then 120, then 180min windows
         for (int windowSize = 60; windowSize <= 180; windowSize += 60) {
             // move the window through the day
-            for (int i = 0; i <= 1440 - windowSize; i++) {
+            for (int i = 0; i <= dayMinutes - windowSize; i++) {
                 int sum = 0;
                 for (int j = 0; j < windowSize; j++) {
                     sum += dealCounts[i + j];
@@ -176,7 +181,7 @@ public class RestaurantService {
             }
         }
 
-        return PeakResponse.builder()
+        return result
                 .peakTimeStart(formatMinutesToTime(peakWindowStart))
                 .peakTimeEnd(formatMinutesToTime(peakWindowEnd))
                 .build();
