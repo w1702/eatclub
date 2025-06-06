@@ -24,7 +24,7 @@ public class RestaurantApi {
     }
 
     @GetMapping("/peakTime")
-    public PeakResponse getPeakTimeWindow() {
+    public PeakResponse getPeakTime() {
         return restaurantService.getPeak();
     }
 }
